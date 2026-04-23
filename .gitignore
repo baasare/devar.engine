@@ -1,0 +1,42 @@
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Build and cache output
+.next/
+dist/
+build/
+*.egg-info/
+coverage/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local data and generated assets
+*.sqlite
+*.sqlite3
+media/
+staticfiles/
+downloads/
+apps/playground/data/
+apps/playground/indexes/
+apps/playground/recordings/
+apps/playground/service_runs/
+apps/playground/transcripts/
+apps/frontend/public/bibles/*.json
+
+# Logs
+*.log

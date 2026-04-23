@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools >= 77.0.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "devar-engine"
+version = "0.1.1"
+description = "Reusable sermon transcription and Bible verse suggestion engine."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+  { name = "Bernard Atiemo Asare", email = "atiemoasare@gmail.com" },
+]
+maintainers = [
+  { name = "Bernard Atiemo Asare", email = "atiemoasare@gmail.com" },
+]
+keywords = [
+  "audio",
+  "bible",
+  "church",
+  "sermon",
+  "speech-to-text",
+  "transcription",
+  "verse-suggestion",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+  "Topic :: Text Processing :: Indexing",
+]
+dependencies = [
+  "numpy>=1.26,<3.0",
+  "rank-bm25>=0.2.2",
+  "snowballstemmer>=2.2,<3.0",
+]
+
+[project.optional-dependencies]
+audio = [
+  "sounddevice>=0.4.6,<1.0",
+]
+transcription = [
+  "useful-moonshine-onnx>=20251121",
+]
+all = [
+  "sounddevice>=0.4.6,<1.0",
+  "useful-moonshine-onnx>=20251121",
+]
+dev = [
+  "pytest>=8.0,<9.0",
+  "build>=1.2,<2.0",
+  "twine>=6.0,<7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/baasare/devar.engine"
+Repository = "https://github.com/baasare/devar.engine"
+Issues = "https://github.com/baasare/devar.engine/issues"
+
+[project.scripts]
+devar-engine-transcribe = "devar_engine.cli.transcribe:main"
+devar-engine-suggest = "devar_engine.cli.suggest:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+python_files = ["test_*.py", "*_test.py", "tests.py"]
