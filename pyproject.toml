@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devar-engine"
-version = "0.2.1"
+version = "0.2.2"
 description = "Reusable sermon transcription and Bible verse suggestion engine."
 readme = "README.md"
 requires-python = ">=3.11"

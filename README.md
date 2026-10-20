@@ -40,6 +40,10 @@ Install the optional on-device EmbeddingGemma 2 runtime for Apple silicon:
 python -m pip install "devar-engine[embedding]"
 ```
 
+The embedding extra pins `mlx-vlm` 0.7.8, which adds the model support required
+by the EmbeddingGemma 2 checkpoint used here. Earlier `mlx-vlm` releases do not
+recognize its `embedding_gemma2` architecture. This extra is Apple-silicon-only.
+
 The first model preparation downloads about 1.27 GB. Verse vectors are cached
 locally per Bible content and model version; semantic queries then embed only
 the rolling transcript text.
