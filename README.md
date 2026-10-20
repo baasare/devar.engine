@@ -34,6 +34,16 @@ Install both microphone capture and transcription support:
 python -m pip install "devar-engine[all]"
 ```
 
+Install the optional on-device EmbeddingGemma 2 runtime for Apple silicon:
+
+```bash
+python -m pip install "devar-engine[embedding]"
+```
+
+The first model preparation downloads about 1.27 GB. Verse vectors are cached
+locally per Bible content and model version; semantic queries then embed only
+the rolling transcript text.
+
 Install from a checked-out repository while developing:
 
 ```bash
@@ -176,6 +186,44 @@ for result in results:
     print(result.reference)
     print(result.display_text)
 ```
+
+### Hybrid Bible Search
+
+The hybrid ranker gives exact spoken references priority, then combines BM25
+word matching with cosine ranks from an optional local embedding index. The
+reference tracker can carry a book and chapter across transcript updates:
+
+```python
+from pathlib import Path
+
+from devar_engine.embeddinggemma import EmbeddingGemma2, ensure_model
+from devar_engine.references import SpokenReferenceTracker
+from devar_engine.semantic import SemanticBibleIndex, hybrid_suggest
+from devar_engine.suggestions import BibleIndex
+
+bible = BibleIndex(Path("data/nkjv.json"))
+embedder = EmbeddingGemma2(ensure_model())
+semantic_index = SemanticBibleIndex(
+    bible,
+    embedder,
+    cache_dir=Path.home() / ".cache/devar/verse-index",
+)
+references = SpokenReferenceTracker(context_ttl=60)
+
+for text in ("the book of Job", "chapter five", "verse seven"):
+    results = hybrid_suggest(
+        bible,
+        text,
+        semantic_index=semantic_index,
+        reference_tracker=references,
+        top_k=3,
+    )
+    print([result.reference for result in results])
+```
+
+If the embedding runtime is unavailable, `hybrid_suggest` still returns exact
+reference and BM25 results. Call `embedder.close()` when the local model is no
+longer needed.
 
 ### Read Recent Transcript Context
 

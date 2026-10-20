@@ -18,6 +18,8 @@ from devar_engine.suggestions import (
     run_loop,
     run_once,
 )
+from devar_engine.references import SpokenReferenceTracker, reference_suggest
+from devar_engine.semantic import SemanticBibleIndex, hybrid_suggest
 
 
 SAMPLE_VERSES = [
@@ -56,6 +58,18 @@ SAMPLE_VERSES = [
         "chapter": 23,
         "verse": 1,
         "text": "The LORD is my shepherd; I shall not want.",
+    },
+    {
+        "book": "Job",
+        "chapter": 5,
+        "verse": 7,
+        "text": "Yet man is born to trouble, as the sparks fly upward.",
+    },
+    {
+        "book": "Job",
+        "chapter": 38,
+        "verse": 33,
+        "text": "Do you know the ordinances of the heavens? Can you set their dominion over the earth?",
     },
 ]
 
@@ -150,6 +164,132 @@ class TestKeywordSuggest(unittest.TestCase):
             bible = BibleIndex(path)
 
             self.assertEqual(keyword_suggest(bible, ""), [])
+
+
+class TestSpokenReferences(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        path = Path(self.temp.name) / "nkjv.json"
+        _write_bible(path)
+        self.bible = BibleIndex(path)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def test_resolves_reference_spoken_as_words(self) -> None:
+        results = reference_suggest(self.bible, "the book of John chapter three verse sixteen")
+        self.assertEqual([result.reference for result in results], ["John 3:16"])
+
+    def test_resolves_compound_numbers_without_chapter_or_verse_cues(self) -> None:
+        results = reference_suggest(self.bible, "Job thirty eight thirty three")
+        self.assertEqual([result.reference for result in results], ["Job 38:33"])
+
+    def test_carries_book_and_chapter_across_pause_updates(self) -> None:
+        tracker = SpokenReferenceTracker(context_ttl=30)
+        self.assertEqual(reference_suggest(self.bible, "the book of Job", tracker, now=0), [])
+        self.assertEqual(reference_suggest(self.bible, "chapter five", tracker, now=4), [])
+        results = reference_suggest(self.bible, "verse seven", tracker, now=12)
+        self.assertEqual([result.reference for result in results], ["Job 5:7"])
+        self.assertEqual(tracker.last_matches[0].reference, "Job 5:7")
+
+    def test_keeps_both_references_when_preacher_corrects_number(self) -> None:
+        tracker = SpokenReferenceTracker()
+        reference_suggest(self.bible, "book of John chapter three", tracker, now=0)
+        results = reference_suggest(self.bible, "verse sixteen or seventeen", tracker, now=1)
+        self.assertEqual([result.reference for result in results], ["John 3:16", "John 3:17"])
+
+    def test_discards_context_after_timeout(self) -> None:
+        tracker = SpokenReferenceTracker(context_ttl=5)
+        reference_suggest(self.bible, "book of John chapter three", tracker, now=0)
+        results = reference_suggest(self.bible, "verse sixteen", tracker, now=6)
+        self.assertEqual(results, [])
+
+
+class _TinyEmbedder:
+    identity = "tiny-test-embedder-v1"
+
+    def __init__(self):
+        self.calls = []
+
+    def embed_texts(self, texts):
+        self.calls.append(list(texts))
+        vectors = []
+        for text in texts:
+            lowered = text.lower()
+            # The sample scripture's semantic concepts: love/world vs shepherd.
+            vectors.append([1.0, 0.0] if "love" in lowered or "loved" in lowered else [0.0, 1.0])
+        return vectors
+
+
+class _ProvisionEmbedder:
+    identity = "provision-test-embedder-v1"
+
+    def embed_texts(self, texts):
+        vectors = []
+        for text in texts:
+            lowered = text.lower()
+            is_query = lowered.startswith("task: search result | query:")
+            is_shepherd_passage = "my shepherd" in lowered
+            vectors.append([0.0, 1.0] if (is_query and "needs are met" in lowered) or is_shepherd_passage else [1.0, 0.0])
+        return vectors
+
+
+class TestHybridSuggestions(unittest.TestCase):
+    def test_precomputes_and_reuses_verse_vectors(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "nkjv.json"
+            _write_bible(path)
+            cache_dir = Path(d) / "cache"
+            embedder = _TinyEmbedder()
+            first = SemanticBibleIndex(BibleIndex(path), embedder, cache_dir=cache_dir, batch_size=2)
+            calls_after_build = len(embedder.calls)
+            again = SemanticBibleIndex(BibleIndex(path), embedder, cache_dir=cache_dir, batch_size=2)
+            self.assertEqual(len(embedder.calls), calls_after_build)
+            self.assertEqual(first.vectors.shape, again.vectors.shape)
+
+    def test_hybrid_finds_semantic_and_keyword_matches_and_prioritizes_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "nkjv.json"
+            _write_bible(path)
+            bible = BibleIndex(path)
+            embedder = _TinyEmbedder()
+            semantic = SemanticBibleIndex(bible, embedder)
+            results = hybrid_suggest(
+                bible, "book of John chapter three verse sixteen", semantic_index=semantic, top_k=3
+            )
+            self.assertEqual(results[0].reference, "John 3:16")
+            self.assertEqual(len(results), 3)
+
+    def test_hybrid_can_ignore_old_explicit_reference_in_rolling_context(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "nkjv.json"
+            _write_bible(path)
+            bible = BibleIndex(path)
+
+            results = hybrid_suggest(
+                bible,
+                "John chapter three verse sixteen. The LORD is my shepherd.",
+                include_references=False,
+                top_k=3,
+            )
+
+            self.assertEqual(results[0].reference, "Psalms 23:1")
+
+    def test_semantic_search_finds_a_paraphrase_without_shared_content_words(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "nkjv.json"
+            _write_bible(path)
+            bible = BibleIndex(path)
+            semantic = SemanticBibleIndex(bible, _ProvisionEmbedder())
+
+            results = hybrid_suggest(
+                bible,
+                "my needs are met",
+                semantic_index=semantic,
+                top_k=3,
+            )
+
+            self.assertEqual(results[0].reference, "Psalms 23:1")
 
 
 class TestReadRecentContext(unittest.TestCase):

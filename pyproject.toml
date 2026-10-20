@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devar-engine"
-version = "0.1.1"
+version = "0.2.0"
 description = "Reusable sermon transcription and Bible verse suggestion engine."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -53,6 +53,13 @@ transcription = [
 all = [
   "sounddevice>=0.4.6,<1.0",
   "useful-moonshine-onnx>=20251121",
+]
+embedding = [
+  "mlx-vlm==0.7.4",
+  "mlx==0.32.3",
+  "transformers==5.19.0",
+  "huggingface-hub>=1.33",
+  "numpy>=1.26,<3.0",
 ]
 dev = [
   "pytest>=8.0,<9.0",
